@@ -6,14 +6,14 @@
 
 //MEMO an mich: DL123 GND und PIN gegenüber
 //sind die richtigen.
-//Ein Optokoppler, npn-Transi, LED und ein 
+//Ein Optokoppler, npn-Transi, Poti und ein
 //Widerstand reichen dann für den Spaß.
 //Erst per Serial testen, dann meckern :P
 
 #include "PS2KeyboardKC.h"
 
-const int REMO = 12;
-const int DataPin = 8;
+const int REMO = 13;
+const int DataPin = 7;
 const int IRQpin =  3;
 PS2Keyboard keyboard;
 
@@ -22,11 +22,12 @@ byte lastByte;
 bool lower;
 
 void setup() 
-{       
+{
   delay(1000);
   keyboard.begin(DataPin, IRQpin, PS2Keymap_German);
   pinMode(REMO, OUTPUT);
   Serial.begin(9600);
+  Serial.println("Online");
   lastByte = 0;
   lower = false;
 }
@@ -42,7 +43,8 @@ void ReaderPS2()
   if (keyboard.available()) 
   {
     incomingByte = keyboard.read();
-    //Serial.print(incomingByte, DEC);
+    //Serial.println(incomingByte, DEC);
+
     if (incomingByte == PS2_CAPS)
     {
        lower = !lower;
@@ -64,16 +66,15 @@ void ReaderSerial()
 {
   if (Serial.available() > 0) 
   {
-    // read the incoming byte:
     incomingByte = Serial.read();
+    if (lastByte == incomingByte)
+      delayMicroseconds(14336); //Haben wir 2x die gleiche Taste dann DW
     ConvertASCII(incomingByte);
   }
 }
 
 void ConvertASCII(unsigned int Data)
 {
-    if (lastByte == Data)
-      delayMicroseconds(14336); //Haben wir 2x die gleiche Taste dann DW
     lastByte = Data;
     switch (Data)
     {
@@ -216,17 +217,17 @@ void SendByte(unsigned int DatenBit)
     Delay(DatenBit & B00000100);
     BURST(); //1
     Delay(DatenBit & B00000010);
-    BURST();                  //Ich weiß nicht warum, aber der will das so
-    delayMicroseconds(14336); //Der geht nur wenn nicht 2x die gleiche Taste hintereinander kommt, sonst bitte dd
+    BURST();       //Ich weiß nicht warum, aber der will das so
+    UDelay(14336); //Der geht nur wenn nicht 2x die gleiche Taste hintereinander kommt, sonst bitte dd
   }
 }
 
 void Delay(bool in)
 {
   if (in)
-    delayMicroseconds(6988);
+    UDelay(6988);
   else
-    delayMicroseconds(4968);
+    UDelay(4968);
   return;  
 }
 
@@ -237,8 +238,32 @@ void BURST()
   for (unsigned int i = 0; i < 5; i++)
   {
     digitalWrite(REMO, HIGH);
-    delayMicroseconds(16);
+    UDelay(16);
     digitalWrite(REMO, LOW);
-    delayMicroseconds(16);
+    UDelay(16);
+  }
+}
+
+//Ersatz für delayMicroseconds(), wer ihn braucht hier wieder einfügen
+void UDelay(unsigned long int us)
+{
+  unsigned long int i  = 0;
+  while (1)
+  {
+    if (i == us)
+      break;
+    __asm__("nop\n\t");
+    __asm__("nop\n\t");
+    __asm__("nop\n\t");
+    __asm__("nop\n\t");
+    __asm__("nop\n\t");
+    __asm__("nop\n\t");
+    __asm__("nop\n\t");
+    __asm__("nop\n\t");
+
+    //Wenn exakt 16Mhz dann die beiden wieder rein
+    //__asm__("nop\n\t");
+    //__asm__("nop\n\t");
+    i++;
   }
 }
